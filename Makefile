@@ -20,8 +20,7 @@ test: asmcli.img
 	(sleep 5; printf 'help\r'; sleep 1; printf 'echo hello qemu\r'; sleep 1; printf 'bogus\r'; sleep 1; printf 'exit\r'; sleep 2) | timeout 20 qemu-system-x86_64 -drive format=raw,file=asmcli.img -nographic -display none -device isa-debug-exit,iobase=0xf4,iosize=0x04 | cat -v; echo "qemu exit code: $$?"
 
 cli: cli.asm
-	nasm -f elf64 cli.asm -o cli.o
-	ld cli.o -o cli
+	nasm -f bin cli.asm -o cli.bin
 
 clean:
-	rm -rf cli cli.o boot.bin kernel.bin asmcli.img
+	rm -rf cli cli.o cli.bin boot.bin kernel.bin asmcli.img
