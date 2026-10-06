@@ -1,8 +1,6 @@
 BITS 16
 ORG 0x7E00
 
-COM equ 0x3F8
-
 start:
     cli
     xor ax, ax
@@ -12,13 +10,12 @@ start:
     mov sp, 0x7C00
     sti
 
-    call serial_init
     mov si, banner
     call print_str
- repl:
+repl:
     mov si, prompt
     call print_str
-    call read_line        
+    call read_line
     mov si, buf
     call skip_spaces
     cmp byte [si], 0
@@ -50,14 +47,13 @@ do_help:
     call print_str
     jmp repl
 do_clear:
-    mov si, cls_seq
-    call print_str
+    call bios_clear
     jmp repl
 do_echo:
     cmp byte [si], 0
     je echo_nl_only
     cmp byte [si], ' '
-    jne unknown_cmd       
+    jne unknown_cmd
     call skip_spaces
 echo_print:
     call print_str
@@ -72,7 +68,6 @@ unknown_cmd:
 do_exit:
     mov si, bye_msg
     call print_str
-    call serial_flush
     mov dx, 0xf4
     xor al, al
     out dx, al
@@ -87,105 +82,69 @@ do_exit:
     hlt
     jmp .hang
 
-serial_init:
+
+putc:                   
     push ax
-    push dx
-    mov dx, COM+3
-    mov al, 0x80
-    out dx, al
-    mov dx, COM
-    mov al, 0x01
-    out dx, al
-    mov dx, COM+1
-    xor al, al
-    out dx, al
-    mov dx, COM+3
-    mov al, 0x03
-    out dx, al
-    mov dx, COM+2
-    mov al, 0xC7
-    out dx, al
-    pop dx
+    push bx
+    mov ah, 0x0E
+    mov bh, 0x00
+    mov bl, 0x07
+    int 0x10
+    pop bx
     pop ax
     ret
 
-serial_putc:              
-    push dx
-    push ax
-    mov ah, al
-.wait_tx:
-    mov dx, COM+5
-    in al, dx
-    test al, 0x20
-    jz .wait_tx
-    mov dx, COM
-    mov al, ah
-    out dx, al
-    pop ax
-    pop dx
+getc:                   
+    xor ah, ah
+    int 0x16
     ret
 
-serial_getc:              
-    push dx
-.wait_rx:
-    mov dx, COM+5
-    in al, dx
-    test al, 0x01
-    jz .wait_rx
-    mov dx, COM
-    in al, dx
-    pop dx
-    ret
-
-serial_flush:             
+bios_clear:
     push ax
-    push dx
-.wait:
-    mov dx, COM+5
-    in al, dx
-    and al, 0x60
-    cmp al, 0x60
-    jne .wait
-    pop dx
+    mov ax, 0x0003
+    int 0x10
     pop ax
     ret
 
-print_str:                
+print_str:              
     push ax
+    push bx
     push si
 .loop:
     lodsb
     test al, al
     jz .done
-    call serial_putc
+    mov ah, 0x0E
+    mov bh, 0x00
+    mov bl, 0x07
+    int 0x10
     jmp .loop
 .done:
     pop si
+    pop bx
     pop ax
     ret
 
-read_line:                
+read_line:
     push ax
     push bx
     push di
     mov di, buf
-    xor bx, bx            
+    xor bx, bx
 .loop:
-    call serial_getc
-    cmp al, 13            
+    call getc
+    cmp al, 13
     je .done
-    cmp al, 10            
+    cmp al, 10
     je .done
-    cmp al, 8             
-    je .bs
-    cmp al, 127
+    cmp al, 8
     je .bs
     cmp bx, 127
-    jae .loop             
+    jae .loop
     mov [di], al
     inc di
     inc bx
-    call serial_putc      
+    call putc
     jmp .loop
 .bs:
     test bx, bx
@@ -193,17 +152,17 @@ read_line:
     dec di
     dec bx
     push ax
-    mov al, 8             
-    call serial_putc
-    mov al, ' '
-    call serial_putc
     mov al, 8
-    call serial_putc
+    call putc
+    mov al, ' '
+    call putc
+    mov al, 8
+    call putc
     pop ax
     jmp .loop
 .done:
     mov byte [di], 0
-    mov si, nl           
+    mov si, nl
     call print_str
     mov si, buf
     pop di
@@ -211,7 +170,7 @@ read_line:
     pop ax
     ret
 
-skip_spaces:              
+skip_spaces:
 .skip:
     cmp byte [si], ' '
     jne .done
@@ -220,7 +179,7 @@ skip_spaces:
 .done:
     ret
 
-strcmp:                   
+strcmp:                 
     push si
     push di
     push ax
@@ -245,7 +204,7 @@ strcmp:
     pop si
     ret
 
-starts_with:              
+starts_with:            
     push ax
 .loop:
     mov al, [di]
@@ -266,11 +225,10 @@ starts_with:
     ret
 
 prompt      db 13,10,"> ",0
-banner      db 13,10,"asm cli (qemu serial)",13,10,"type 'help' for commands",13,10,0
+banner      db 13,10,"asm cli (bios)",13,10,"type 'help' for commands",13,10,0
 help_msg    db 13,10,"commands: help | echo <txt> | clear | exit",13,10,0
 unknown_msg db "?",13,10,0
 bye_msg     db "bye",13,10,0
-cls_seq     db 27,"[2J",27,"[H",0
 nl          db 13,10,0
 cmd_help    db "help",0
 cmd_echo    db "echo",0
